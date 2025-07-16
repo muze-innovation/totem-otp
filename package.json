@@ -2,7 +2,8 @@
   "name": "totem-otp",
   "version": "1.0.0",
   "workspaces": [
-    "packages/core"
+    "packages/core",
+    "packages/storage-redis"
   ],
   "homepage": "https://github.com/muze-innovation/totem-otp#readme",
   "bugs": {
