@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "workspaces": [
     "packages/core",
-    "packages/storage-redis"
+    "packages/storage-redis",
+    "packages/delivery-webhook"
   ],
   "homepage": "https://github.com/muze-innovation/totem-otp#readme",
   "bugs": {

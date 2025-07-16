@@ -1,0 +1,57 @@
+{
+  "name": "@totem-otp/delivery-webhook",
+  "version": "0.0.1",
+  "description": "Webhook delivery agent for TotemOTP",
+  "main": "lib/cjs/src/index.js",
+  "module": "lib/esm/src/index.js",
+  "typings": "lib/esm/src/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.esm.json && tsc -p tsconfig.json",
+    "clean": "rm -rf node_modules/ && rm -rf lib/",
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "roots": ["<rootDir>/src"],
+    "testMatch": [
+      "**/__tests__/**/*.test.ts",
+      "**/?(*.)+(spec|test).ts"
+    ],
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/**/*.d.ts",
+      "!src/**/__tests__/**"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muze-innovation/totem-otp.git"
+  },
+  "keywords": [
+    "otp",
+    "webhook",
+    "delivery",
+    "http"
+  ],
+  "author": "Muze Innovation",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/muze-innovation/totem-otp/issues"
+  },
+  "homepage": "https://github.com/muze-innovation/totem-otp#readme",
+  "peerDependencies": {
+    "totem-otp": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "jest": "^30.0.4",
+    "ts-jest": "^29.4.0",
+    "typescript": "^5.8.3",
+    "nock": "^13.4.0"
+  }
+}
