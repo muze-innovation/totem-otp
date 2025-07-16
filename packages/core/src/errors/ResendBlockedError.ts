@@ -1,6 +1,6 @@
 export class ResendBlockedError extends Error {
-  constructor(message: string = 'Resend is blocked by aging policy') {
-    super(message)
+  constructor(public readonly msUntilNextSend: number) {
+    super(`Resend is being blocked for ${msUntilNextSend}ms.`)
     this.name = 'ResendBlockedError'
 
     // Maintains proper stack trace for where our error was thrown (only available on V8)
@@ -9,4 +9,3 @@ export class ResendBlockedError extends Error {
     }
   }
 }
-

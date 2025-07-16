@@ -3,7 +3,5 @@ export { ResendBlockedError } from './ResendBlockedError'
 export { DeliveryFailedError } from './DeliveryFailedError'
 export { NoSchemaMatchedTargetConfigError } from './NoSchemaMatchedTargetConfigError'
 export { NoDeliveryAgentMatchedConfigError } from './NoDeliveryAgentMatchedConfigError'
-export { UnknownReferenceError } from './UnknownReferenceError'
 export { OTPUsedError } from './OTPUsedError'
 export { OTPMismatchedError } from './OTPMismatchedError'
-

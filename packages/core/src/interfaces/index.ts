@@ -65,38 +65,52 @@ export interface IDeliveryAgent {
  */
 export interface IOTPStorage {
   /**
+   * Used when an OTP was requested. We will use this flag to render the
+   * target as not yet ready to received another OTP.
+   *
+   * @param otpReceipientKey - the target unique key represent the unique OTP receipient address.
+   * @param blockedForMs - number of Milliseconds if this request went through until this audience will be ready to received the next one.
+   * @returns number - 0 if this receipient key is open for receiving. Otherwise returns TTL until banned will be lifted.
+   */
+  markRequested(otpReceipientKey: string, blockedForMs: number): Promise<number>
+
+  /**
+   * Use this for rollback to banned imposed earlier.
+   *
+   * @param otpReceipientKey the key of receipient to be lifted.
+   */
+  unmarkRequested(otpReceipientKey: string): Promise<void>
+
+  /**
    * Save the provided OTP value before the OTP is to be sent.
    *
    * @param otp - the OTP Value
-   * @param parentReference - the optional reference to parent OTP record
-   * @param deletableAt - the Epoch Milliseconds marked the Order has been deleted.
+   * @param deletableAt - the field indicate when this OTP is free to delete from Database.
    */
-  store(otp: IOTPValue, parentReference: string | null, deletableAt: number): Promise<void>
+  store(otp: IOTPValue, deletableAt: number): Promise<void>
 
   /**
-   * Retrieve the provided OTP from the Reference.
+   * Retrieve the provided OTP from the Reference. Whenever system retrieved
+   * the OTP Value from store this means it has been used.
    *
    * @param otpReferene the OTP reference used when `store` was called.
+   * @param otpValue the OTP Value used as conjunction primary key.
    * @return The OTP value recently stored in the Storage with its additional optional field (receiptId, used).
    */
-  fetch(otpReference: string): Promise<(IOTPValue & { receiptId?: string; used: number }) | null>
+  fetchAndUsed(
+    otpReference: string,
+    otpValue: string
+  ): Promise<(IOTPValue & { receiptId?: string; used: number }) | null>
 
   /**
    * Set the given OTP that is has been sent.
    *
    * Mark that the OTP has been sent
-   * @param otpReferene the OTP reference used when `store` was called.
+   * @param otpReference the OTP reference used when `store` was called.
+   * @param otpValue the OTP Value used as conjunction primary key.
    * @param receiptId the delivery receipt id.
    */
-  markAsSent?(otpReference: string, receiptId: string): Promise<void>
-
-  /**
-   * Mark the given OTP that it has been used.
-   *
-   * @param otpReferene the OTP reference used when `store` was called.
-   * @return Number of time it has been marked as used.
-   */
-  markAsUsed(otpReference: string): Promise<number>
+  markAsSent?(otpReference: string, otpValue: string, receiptId: string): Promise<void>
 }
 
 /**
@@ -107,14 +121,13 @@ export interface ITotemOTP {
    * Use this method when user would like to request an OTP.
    *
    * @param target the delivery target.
-   * @param parentReference in case of re-send OTP we can provide this field to create the reference.
    * @return IOTPValue that has been delivered.
    * @throws ResendBlockedError - when requested target is still blocked by OTP's schema.
    * @throws DeliveryFailedError - when the OTP Failed to be delivered by DeliveryAgent.
    * @throws NoSchemaMatchedTargetConfigError - no Schema matched
    * @throws NoDeliveryAgentMatchedConfigError - no Delivery Agent matched
    */
-  request(target: IOTPTarget, parentReference: string): Promise<IOTPValue>
+  request(target: IOTPTarget): Promise<IOTPValue>
 
   /**
    * Use this method when application has otpValue to compare from frontend.

@@ -12,8 +12,7 @@ import {
   NoSchemaMatchedTargetConfigError,
   OTPMismatchedError,
   OTPUsedError,
-  ResendBlockedError,
-  UnknownReferenceError
+  ResendBlockedError
 } from './errors'
 import { generateOTPAndReference } from './utils/generator'
 
@@ -29,21 +28,13 @@ export class TotemOTP implements ITotemOTP {
     return this._storage!
   }
 
-  public async request(target: IOTPTarget, parentReference?: string): Promise<IOTPValue> {
-    const nowEpoch = new Date().getTime()
-    // If parent reference is requested. Recheck existing ones.
-    if (parentReference) {
-      const otpValue = await this.storageImpl.fetch(parentReference)
-      if (otpValue === null) {
-        throw new UnknownReferenceError()
-      }
-      if (otpValue.resendAllowedAtMs > nowEpoch) {
-        throw new ResendBlockedError()
-      }
-    }
-    // try to call it.
+  public async request(target: IOTPTarget): Promise<IOTPValue> {
+    // validate schema
     const schema = this.matchSchema(target)
+    // Validate agent
     const agent = this.matchDeliveryAgent(target)
+
+    const nowEpoch = new Date().getTime()
     const generated = generateOTPAndReference(schema.otp, schema.reference)
     const otpVal: IOTPValue = {
       expiresAtMs: nowEpoch + schema.aging.expiresIn,
@@ -52,30 +43,32 @@ export class TotemOTP implements ITotemOTP {
       value: generated.otp,
       target
     }
-    // save it.
-    await this.storageImpl.store(
-      otpVal,
-      parentReference || null,
-      nowEpoch + schema.aging.purgeFromDbIn
-    )
-    // send it.
-    const receiptId = await agent.sendMessageToAudience(otpVal)
-    if (this.storageImpl.markAsSent) {
-      await this.storageImpl.markAsSent(generated.reference, receiptId)
+
+    // If parent reference is requested. Recheck existing ones.
+    await this.validateReceipient(target, schema.aging)
+
+    try {
+      // save it.
+      await this.storageImpl.store(otpVal, nowEpoch + schema.aging.purgeFromDbIn)
+      // send it.
+      const receiptId = await agent.sendMessageToAudience(otpVal)
+      if (this.storageImpl.markAsSent) {
+        await this.storageImpl.markAsSent(generated.reference, generated.otp, receiptId)
+      }
+    } catch (e) {
+      await this.invalidateReceipient(target)
     }
+
     return otpVal
   }
 
   public async validate(reference: string, otpValue: string): Promise<number> {
-    const otpFromDb = await this.storageImpl.fetch(reference)
+    const otpFromDb = await this.storageImpl.fetchAndUsed(reference, otpValue)
     if (otpFromDb === null) {
-      throw new UnknownReferenceError()
-    }
-    if (otpFromDb.value !== otpValue) {
       throw new OTPMismatchedError()
     }
     const successValidateCount = this.matchSchema(otpFromDb.target).aging.successValidateCount
-    const used = await this.storageImpl.markAsUsed(reference)
+    const used = otpFromDb.used
     if (used > successValidateCount) {
       throw new OTPUsedError(used)
     }
@@ -83,6 +76,34 @@ export class TotemOTP implements ITotemOTP {
   }
 
   // ---------------------------- PRIVATE METHODs ----------------------------- //
+
+  /**
+   * Validate if receipient if target is allowed to be called. Block if valid.
+   *
+   * @throws ResendBlockedError if such receipient is being blocked
+   */
+  private async validateReceipient(
+    target: IOTPTarget,
+    aging: IMatchableConfigurationSchema['aging']
+  ): Promise<void> {
+    const ttls = await this.storageImpl.markRequested(
+      this.toReceipientKey(target),
+      aging.canResendIn
+    )
+    if (ttls === 0) {
+      return
+    }
+    throw new ResendBlockedError(ttls)
+  }
+
+  private async invalidateReceipient(target: IOTPTarget): Promise<void> {
+    // Release the receipient blocked earlier
+    return this.storageImpl.unmarkRequested(this.toReceipientKey(target))
+  }
+
+  private toReceipientKey(target: IOTPTarget): string {
+    return target.uniqueIdentifier || `${target.type}|${target.value}`
+  }
 
   private matchSchema(target: IOTPTarget): IMatchableConfigurationSchema {
     const schemas = this.configuration.schemas
