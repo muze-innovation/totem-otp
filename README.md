@@ -19,6 +19,7 @@ The code is implemented using TypeScript. Which can simply be used with any fram
 
 - Language: TypeScript
 - Framework: None
+- Node20
 
 # Usage
 
@@ -41,7 +42,7 @@ app.post('/my-app/request-for-otp', async function(req, res) {
     const otp = await totem.request({
         "type": "msisdn",
         "value": msisdn,
-        "uniqueIdentifier": msisdn, // optional to prevent user request for too many time to save your delivery cost. If not provided. it will use `type+value`
+        "uniqueIdentifier": msisdn, // optional, will be used to override otpReceipientKey
     })
     res.json(otp)
 })
@@ -76,7 +77,7 @@ This section describe how should your OTP be delivered to your client.
     "delivery_agents": [
         {
             "match": function, // default () => true (match anything)
-            "agent": <delivery_agent_name_package_name>, // <-- initialize your instance here. DeliveryAgent must implement IDeliveryAgent interface.
+            "agent": <delivery_agent_instance>, // <-- initialize your instance here. DeliveryAgent must implement IDeliveryAgent interface.
         }
     ]
 }
@@ -118,9 +119,7 @@ This section describe how to store your OTP, and how to retrieve it for comparsi
 ```js
 {
     /** ... other configurations ... */
-    "storage": {
-        "storage": <storage_instance>, // <-- initialize your instance here. Storage must implement IOTPStorage interface.
-    }
+    "storage": <function_to_create_storage_instance>, // <-- initialize your instance here. Storage must implement IOTPStorage interface.
 }
 ```
 
@@ -184,38 +183,52 @@ export interface IDeliveryAgent {
  */
 export interface IOTPStorage {
     /**
+     * Used when an OTP was requested. We will use this flag to render the
+     * target as not yet ready to received another OTP.
+     *
+     * @param otpReceipientKey - the target unique key represent the unique OTP receipient address.
+     * @param blockedForMs - number of Milliseconds if this request went through until this audience will be ready to received the next one.
+     * @returns number - 0 if this receipient key is open for receiving. Otherwise returns TTL until banned will be lifted.
+     */
+    markRequested(otpReceipientKey: string, blockedForMs: number): Promise<number>
+
+    /**
+     * Use this for rollback to banned imposed earlier.
+     *
+     * @param otpReceipientKey the key of receipient to be lifted.
+     */
+    unmarkRequested(otpReceipientKey: string): Promise<void>
+
+    /**
      * Save the provided OTP value before the OTP is to be sent.
      *
      * @param otp - the OTP Value
-     * @param parentReference - the optional reference to parent OTP record
      * @param deletableAt - the field indicate when this OTP is free to delete from Database.
      */
-    store(otp: IOTPValue, parentReference?: string, deletableAt: number): Promise<void>
+    store(otp: IOTPValue, deletableAt: number): Promise<void>
 
     /**
-     * Retrieve the provided OTP from the Reference.
+     * Retrieve the provided OTP from the Reference. Whenever system retrieved
+     * the OTP Value from store this means it has been used.
      *
      * @param otpReferene the OTP reference used when `store` was called.
+     * @param otpValue the OTP Value used as conjunction primary key.
      * @return The OTP value recently stored in the Storage with its additional optional field (receiptId, used).
      */
-    fetch(otpReference: string): Promise<IOTPValue & { receiptId?: string, used: number } | null>
+    fetchAndUsed(
+        otpReference: string,
+        otpValue: string
+    ): Promise<(IOTPValue & { receiptId?: string; used: number }) | null>
 
     /**
      * Set the given OTP that is has been sent.
      *
      * Mark that the OTP has been sent
-     * @param otpReferene the OTP reference used when `store` was called.
+     * @param otpReference the OTP reference used when `store` was called.
+     * @param otpValue the OTP Value used as conjunction primary key.
      * @param receiptId the delivery receipt id.
      */
-    markAsSent?(otpReference: string, receiptId: stirng): Promise<void>
-
-    /**
-     * Mark the given OTP that it has been used.
-     *
-     * @param otpReferene the OTP reference used when `store` was called.
-     * @return Number of time it has been marked as used.
-     */
-    markAsUsed(otpReference: string): Promise<number>
+    markAsSent?(otpReference: string, otpValue: string, receiptId: stirng): Promise<void>
 }
 ```
 
@@ -230,14 +243,13 @@ export interface ITotemOTP {
      * Use this method when user would like to request an OTP.
      *
      * @param target the delivery target.
-     * @param parentReference in case of re-send OTP we can provide this field to create the reference.
      * @return IOTPValue that has been delivered.
-     * @throws ResendBlockedError - when requested target is still blocked by OTP's schema.
-     * @throws DeliveryFailedError - when the OTP Failed to be delivered by DeliveryAgent.
      * @throws NoSchemaMatchedTargetConfigError - no Schema matched
      * @throws NoDeliveryAgentMatchedConfigError - no Delivery Agent matched
+     * @throws ResendBlockedError - when requested target is still blocked by OTP's schema.
+     * @throws DeliveryFailedError - when the OTP Failed to be delivered by DeliveryAgent.
      */
-    request(target: IOTPTarget, parentReference: string): Promise<IOTPValue>
+    request(target: IOTPTarget): Promise<IOTPValue>
 
     /**
      * Use this method when application has otpValue to compare from frontend.
@@ -247,7 +259,6 @@ export interface ITotemOTP {
      * @param reference the OTP reference sent from frontend.
      * @param otpValue the actual OTP value from frontend.
      * @return positive integer of how many time this OTP has been successfully validated. e.g. return 1 for the first time it is successfully validated.
-     * @throws UnknownReferenceError - no OTP belong to this reference.
      * @throws OTPUsedError - the provided OTP has already been used. (Already correctly validated).
      * @throws OTPMismatchedError - the provided OTP mismatched with the given reference.
      */
