@@ -1,3 +1,2 @@
 node_modules
-packages/core/lib
-packages/storage-redis/lib
+packages/*/lib
