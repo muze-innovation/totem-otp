@@ -6,6 +6,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is the **TotemOTP** project - a TypeScript OTP (One-Time Password) generation and validation library. It provides a configurable framework for OTP handling with pluggable storage, delivery agents, and schema configurations.
 
+## Development Setup
+
+This is a monorepo with npm workspaces:
+
+- Root: Contains workspace configuration and Jest testing
+- `packages/core/`: Main library implementation
+
+### Commands
+
+- `npm test` - Run Jest tests from root
+- `npm run build` - Build the library (run from packages/core/)
+- `npm run clean` - Clean build artifacts (run from packages/core/)
+
+### Build Configuration
+
+- Uses TypeScript with dual builds: CommonJS (`tsconfig.json`) and ESM (`tsconfig.esm.json`)
+- Outputs to `lib/cjs/` and `lib/esm/` directories
+- Main entry: `lib/cjs/src/index.js`
+- Module entry: `lib/esm/src/index.js`
+- Uses Zod for schema validation
+
 ## Key Architecture
 
 TotemOTP is built around three core configurable components:
@@ -18,13 +39,14 @@ The main entry point is the `TotemOTP` class which orchestrates these components
 - `request(target, parentReference)` - Generate and send OTP
 - `validate(reference, otpValue)` - Validate received OTP
 
-## Development Setup
+## Code Structure
 
-This appears to be a library project. Based on the README:
-
-- Language: TypeScript
-- Framework: None (utility library)
-- Installation: `npm install totem-otp`
+```
+packages/core/src/
+├── index.ts              # Main exports
+├── interfaces/index.ts   # Core interfaces and types
+└── validations/schema.ts # Zod schemas (currently minimal)
+```
 
 ## Key Interfaces
 

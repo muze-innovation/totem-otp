@@ -1,1 +1,2 @@
-export * from './interfaces'
+export type * from './interfaces'
+export * from './totem-otp'

@@ -125,3 +125,40 @@ export interface ITotemOTP {
    */
   validate(reference: string, otpValue: string): Promise<number>
 }
+
+export interface IMatchableConfigurationDeliveryAgent {
+  match?: (target: IOTPTarget) => boolean
+  agent: () => IDeliveryAgent
+}
+
+export interface IMatchableConfigurationSchema {
+  match?: (target: IOTPTarget) => boolean
+  otp: { charset: string[]; length: number }
+  reference: { charset: string[]; lenght: number }
+  aging: {
+    successValidateCount: number // How many time this OTP can be correctly validated
+    purgeFromDbIn: number // will be considered safe to remove from Storage 30 minutes
+    canResendIn: number // will allow resend-in 2 minutes
+    expiresIn: number // will no longer be usable in 5 minutes
+  }
+}
+
+/**
+ * Configuration for initialize the ITotemOTP instance
+ */
+export interface ITotemOTPConfiguration {
+  /**
+   * Storage
+   */
+  storage: () => IOTPStorage
+
+  /**
+   * Schemas
+   */
+  schemas: IMatchableConfigurationSchema[]
+
+  /**
+   * Agents
+   */
+  deliveryAgents: IMatchableConfigurationDeliveryAgent[]
+}
