@@ -5,4 +5,3 @@ export {
   generateReference,
   generateOTPAndReference
 } from './generator'
-

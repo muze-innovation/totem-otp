@@ -69,4 +69,3 @@ export function generateOTPAndReference(
     reference: generateReference(referenceConfig)
   }
 }
-
