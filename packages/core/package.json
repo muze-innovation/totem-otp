@@ -7,7 +7,25 @@
   "typings": "lib/esm/src/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.esm.json && tsc -p tsconfig.json",
-    "clean": "rm -rf node_modules/ && rm -rf libs/"
+    "clean": "rm -rf node_modules/ && rm -rf libs/",
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "roots": ["<rootDir>/src"],
+    "testMatch": [
+      "**/__tests__/**/*.test.ts",
+      "**/?(*.)+(spec|test).ts"
+    ],
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/**/*.d.ts",
+      "!src/**/__tests__/**"
+    ]
   },
   "repository": {
     "type": "git",
@@ -21,5 +39,8 @@
   "bugs": {
     "url": "https://github.com/muze-innovation/totem-otp/issues"
   },
-  "homepage": "https://github.com/muze-innovation/totem-otp#readme"
+  "homepage": "https://github.com/muze-innovation/totem-otp#readme",
+  "devDependencies": {
+    "@types/jest": "^29.5.0"
+  }
 }

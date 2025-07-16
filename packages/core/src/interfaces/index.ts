@@ -39,9 +39,13 @@ export interface IOTPValue {
    */
   reference: string
   /**
-   * Milliseconds until OTP is expired.
+   * Epoch Milliseconds that marks this OTP has been expired
    */
-  expiresInMs: number
+  expiresAtMs: number
+  /**
+   * Epoch Milliseconds that will allowed the resend
+   */
+  resendAllowedAtMs: number
 }
 
 /**
@@ -65,8 +69,9 @@ export interface IOTPStorage {
    *
    * @param otp - the OTP Value
    * @param parentReference - the optional reference to parent OTP record
+   * @param deletableAt - the Epoch Milliseconds marked the Order has been deleted.
    */
-  store(otp: IOTPValue, parentReference?: string): Promise<void>
+  store(otp: IOTPValue, parentReference: string | null, deletableAt: number): Promise<void>
 
   /**
    * Retrieve the provided OTP from the Reference.
@@ -74,7 +79,7 @@ export interface IOTPStorage {
    * @param otpReferene the OTP reference used when `store` was called.
    * @return The OTP value recently stored in the Storage with its additional optional field (receiptId, used).
    */
-  fetch(otpReference: string): Promise<IOTPValue & { receiptId?: string; used: number }>
+  fetch(otpReference: string): Promise<(IOTPValue & { receiptId?: string; used: number }) | null>
 
   /**
    * Set the given OTP that is has been sent.
@@ -134,7 +139,7 @@ export interface IMatchableConfigurationDeliveryAgent {
 export interface IMatchableConfigurationSchema {
   match?: (target: IOTPTarget) => boolean
   otp: { charset: string[]; length: number }
-  reference: { charset: string[]; lenght: number }
+  reference: { charset: string[]; length: number }
   aging: {
     successValidateCount: number // How many time this OTP can be correctly validated
     purgeFromDbIn: number // will be considered safe to remove from Storage 30 minutes
