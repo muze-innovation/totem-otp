@@ -41,7 +41,7 @@ app.post('/my-app/request-for-otp', async function(req, res) {
     const otp = await totem.request({
         "type": "msisdn",
         "value": msisdn,
-        "unique_identifier": msisdn, // optional to prevent user request for too many time to save your delivery cost. If not provided. it will use `type+value`
+        "uniqueIdentifier": msisdn, // optional to prevent user request for too many time to save your delivery cost. If not provided. it will use `type+value`
     })
     res.json(otp)
 })
