@@ -1,0 +1,28 @@
+{
+  "name": "totem-otp",
+  "version": "0.0.1",
+  "description": "TotemOTP",
+  "main": "lib/cjs/src/index.js",
+  "module": "lib/esm/src/index.js",
+  "typings": "lib/esm/src/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.esm.json && tsc -p tsconfig.json",
+    "clean": "rm -rf node_modules/ && rm -rf libs/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muze-innovation/totem-otp.git"
+  },
+  "keywords": [
+    "otp"
+  ],
+  "author": "Muze Innovation",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/muze-innovation/totem-otp/issues"
+  },
+  "homepage": "https://github.com/muze-innovation/totem-otp#readme",
+  "dependencies": {
+    "zod": "^4.0.5"
+  }
+}

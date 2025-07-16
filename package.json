@@ -1,0 +1,27 @@
+{
+  "name": "totem-otp",
+  "version": "1.0.0",
+  "workspaces": [
+    "packages/core"
+  ],
+  "homepage": "https://github.com/muze-innovation/totem-otp#readme",
+  "bugs": {
+    "url": "https://github.com/muze-innovation/totem-otp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muze-innovation/totem-otp.git"
+  },
+  "license": "ISC",
+  "author": "Muze Innovation",
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "jest": "^30.0.4",
+    "prettier": "^3.6.2",
+    "ts-jest": "^29.4.0",
+    "typescript": "^5.8.3"
+  }
+}
