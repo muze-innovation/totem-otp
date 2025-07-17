@@ -1,13 +1,13 @@
 #!/bin/node
 
 import 'dotenv/config'
-import type { IOTPTarget, IOTPValue } from '@totem-otp/core'
+import type { IOTPTarget, IOTPValue } from 'totem-otp'
 import express from 'express'
 import cors from 'cors'
 import { createClient } from 'redis'
-import { TotemOTP } from '@totem-otp/core'
-import { RedisOTPStorage } from '@totem-otp/storage-redis'
-import { WebhookDeliveryAgent } from '@totem-otp/delivery-webhook'
+import { TotemOTP } from 'totem-otp'
+import { RedisOTPStorage } from 'totem-otp-storage-redis'
+import { WebhookDeliveryAgent } from 'totem-otp-delivery-webhook'
 
 const app = express()
 const PORT = process.env.PORT || 3000

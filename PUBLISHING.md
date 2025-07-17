@@ -4,7 +4,7 @@ This guide covers how to build, test, and publish TotemOTP packages to npm.
 
 ## Prerequisites
 
-1. **npm Account**: Ensure you have access to publish to the `@totem-otp` organization on npm
+1. **npm Account**: Ensure you have access to publish to the `totem-otp` organization on npm
 2. **npm Login**: Run `npm login` to authenticate with npm registry
 3. **Git Clean State**: Ensure your working directory is clean and all changes are committed
 
@@ -12,9 +12,9 @@ This guide covers how to build, test, and publish TotemOTP packages to npm.
 
 The monorepo contains the following publishable packages:
 
-- `@totem-otp/core` - Core OTP generation and validation logic
-- `@totem-otp/storage-redis` - Redis storage implementation
-- `@totem-otp/delivery-webhook` - Webhook delivery agent
+- `totem-otp` - Core OTP generation and validation logic
+- `totem-otp-storage-redis` - Redis storage implementation
+- `totem-otp-delivery-webhook` - Webhook delivery agent
 
 ## Publishing Commands
 
@@ -131,7 +131,7 @@ git push origin main --tags
 npm run publish:beta
 
 # 3. Test installation
-npm install @totem-otp/core@beta
+npm install totem-otp@beta
 ```
 
 ### Republishing After Failure
@@ -140,9 +140,9 @@ If publishing fails partway through:
 
 ```bash
 # Check which packages were published
-npm view @totem-otp/core
-npm view @totem-otp/storage-redis  
-npm view @totem-otp/delivery-webhook
+npm view totem-otp
+npm view totem-otp-storage-redis  
+npm view totem-otp-delivery-webhook
 
 # Run publish again - script will skip already published packages
 npm run publish:packages
@@ -152,10 +152,10 @@ npm run publish:packages
 
 The packages have these dependencies:
 
-- `@totem-otp/storage-redis` depends on `@totem-otp/core`
-- `@totem-otp/delivery-webhook` depends on `@totem-otp/core`
+- `totem-otp-storage-redis` depends on `totem-otp`
+- `totem-otp-delivery-webhook` depends on `totem-otp`
 
-The publishing script ensures `@totem-otp/core` is always published first.
+The publishing script ensures `totem-otp` is always published first.
 
 ## Troubleshooting
 
@@ -166,7 +166,7 @@ The publishing script ensures `@totem-otp/core` is always published first.
 npm whoami
 
 # Check organization access
-npm org ls @totem-otp
+npm org ls totem-otp
 
 # Login if needed
 npm login
@@ -188,7 +188,7 @@ npx tsc --noEmit --project packages/core/tsconfig.json
 
 If you get version conflicts:
 
-1. Check existing published versions: `npm view @totem-otp/core versions --json`
+1. Check existing published versions: `npm view totem-otp versions --json`
 2. Update to a new version number
 3. Ensure peer dependencies are compatible
 
@@ -209,8 +209,8 @@ npm publish --registry https://registry.npmjs.org/
 
 After successful publishing:
 
-1. ✅ Verify packages are available: `npm view @totem-otp/core`
-2. ✅ Test installation: `npm install @totem-otp/core`
+1. ✅ Verify packages are available: `npm view totem-otp`
+2. ✅ Test installation: `npm install totem-otp`
 3. ✅ Update documentation if needed
 4. ✅ Create GitHub release with changelog
 5. ✅ Announce new version (Discord, Slack, etc.)

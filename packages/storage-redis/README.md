@@ -1,18 +1,18 @@
-# @totem-otp/storage-redis
+# totem-otp-storage-redis
 
 Redis storage implementation for TotemOTP framework.
 
 ## Installation
 
 ```bash
-npm install @totem-otp/storage-redis redis
+npm install totem-otp-storage-redis redis
 ```
 
 ## Usage
 
 ```typescript
 import { createClient } from 'redis'
-import { RedisOTPStorage } from '@totem-otp/storage-redis'
+import { RedisOTPStorage } from 'totem-otp-storage-redis'
 import { TotemOTP } from 'totem-otp'
 
 // Create Redis client (standalone)

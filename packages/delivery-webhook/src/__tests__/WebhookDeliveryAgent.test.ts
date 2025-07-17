@@ -1,4 +1,4 @@
-import type { IOTPValue } from '@totem-otp/core'
+import type { IOTPValue } from 'totem-otp'
 
 import nock from 'nock'
 import { WebhookDeliveryAgent } from '../WebhookDeliveryAgent'

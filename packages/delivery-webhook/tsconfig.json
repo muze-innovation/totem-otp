@@ -5,7 +5,7 @@
     "outDir": "./lib/cjs",
     "baseUrl": ".",
     "paths": {
-      "@totem-otp/core": ["../core/src"]
+      "totem-otp": ["../core/src"]
     }
   },
   "references": [

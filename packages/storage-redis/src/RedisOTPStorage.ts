@@ -1,4 +1,4 @@
-import type { IOTPValue, IOTPStorage } from '@totem-otp/core'
+import type { IOTPValue, IOTPStorage } from 'totem-otp'
 import type { RedisClientType } from 'redis'
 
 export interface RedisOTPStorageOptions {

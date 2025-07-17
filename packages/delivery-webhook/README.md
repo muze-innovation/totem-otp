@@ -1,11 +1,11 @@
-# @totem-otp/delivery-webhook
+# totem-otp-delivery-webhook
 
 HTTP webhook delivery agent for TotemOTP framework.
 
 ## Installation
 
 ```bash
-npm install @totem-otp/delivery-webhook
+npm install totem-otp-delivery-webhook
 ```
 
 ## Usage
@@ -13,7 +13,7 @@ npm install @totem-otp/delivery-webhook
 ### Basic Usage
 
 ```typescript
-import { WebhookDeliveryAgent } from '@totem-otp/delivery-webhook'
+import { WebhookDeliveryAgent } from 'totem-otp-delivery-webhook'
 import { TotemOTP } from 'totem-otp'
 
 // Create webhook delivery agent

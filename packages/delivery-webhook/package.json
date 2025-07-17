@@ -1,5 +1,5 @@
 {
-  "name": "@totem-otp/delivery-webhook",
+  "name": "totem-otp-delivery-webhook",
   "version": "0.0.1",
   "description": "Webhook delivery agent for TotemOTP",
   "main": "lib/cjs/src/index.js",
@@ -44,7 +44,7 @@
   },
   "homepage": "https://github.com/muze-innovation/totem-otp#readme",
   "peerDependencies": {
-    "@totem-otp/core": "^0.0.1"
+    "totem-otp": "^0.0.1"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",

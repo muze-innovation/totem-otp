@@ -10,7 +10,7 @@ This directory contains scripts for building and publishing TotemOTP packages.
 
 The publishing script provides:
 
-1. **Dependency-Aware Publishing**: Publishes `@totem-otp/core` first, then dependent packages
+1. **Dependency-Aware Publishing**: Publishes `totem-otp` first, then dependent packages
 2. **Build & Test Validation**: Ensures all packages build and test successfully before publishing
 3. **Duplicate Prevention**: Skips packages already published with the same version
 4. **Dry Run Support**: Test publishing without actually uploading packages
@@ -43,8 +43,8 @@ npm run publish:beta
 
 ## Package Publishing Order
 
-1. `@totem-otp/core` - Core functionality
-2. `@totem-otp/storage-redis` - Redis storage (depends on core)
-3. `@totem-otp/delivery-webhook` - Webhook delivery (depends on core)
+1. `totem-otp` - Core functionality
+2. `totem-otp-storage-redis` - Redis storage (depends on core)
+3. `totem-otp-delivery-webhook` - Webhook delivery (depends on core)
 
 This order ensures dependencies are available before dependent packages are published.

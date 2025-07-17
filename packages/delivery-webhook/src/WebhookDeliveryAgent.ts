@@ -1,4 +1,4 @@
-import type { IOTPValue, IDeliveryAgent } from '@totem-otp/core'
+import type { IOTPValue, IDeliveryAgent } from 'totem-otp'
 // Use Node.js built-in fetch (available in Node 18+) or fallback to https module
 import { request as httpsRequest } from 'https'
 import { request as httpRequest } from 'http'

@@ -1,4 +1,4 @@
-import type { IOTPValue } from '@totem-otp/core'
+import type { IOTPValue } from 'totem-otp'
 
 import { createClient, RedisClientType } from 'redis'
 import { RedisMemoryServer } from 'redis-memory-server'
