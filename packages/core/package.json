@@ -1,5 +1,5 @@
 {
-  "name": "@totem-otp/core",
+  "name": "totem-otp",
   "version": "0.0.1",
   "description": "TotemOTP",
   "main": "lib/cjs/src/index.js",

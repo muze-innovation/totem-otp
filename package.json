@@ -18,7 +18,19 @@
   "license": "ISC",
   "author": "Muze Innovation",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "build": "npm run build --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present",
+    "test:all": "npm run test --workspaces --if-present",
+    "lint": "prettier --check .",
+    "lint:fix": "prettier --write .",
+    "prepublish": "npm run clean && npm run build && npm run test:all",
+    "publish:dry": "node scripts/publish.js --dry-run",
+    "publish:packages": "node scripts/publish.js",
+    "publish:beta": "node scripts/publish.js --tag=beta",
+    "version:patch": "npm version patch --workspaces",
+    "version:minor": "npm version minor --workspaces",
+    "version:major": "npm version major --workspaces"
   },
   "devDependencies": {
     "@types/node": "^20",
