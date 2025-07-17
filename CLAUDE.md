@@ -73,3 +73,7 @@ The library throws specific error types:
 - `UnknownReferenceError`: Invalid OTP reference
 - `OTPUsedError`: OTP already validated
 - `OTPMismatchedError`: OTP value mismatch
+
+## Development Memories
+
+- We are using npm workspace hence dependencies reference should be using "*" not "workspace:*"

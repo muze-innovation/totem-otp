@@ -4,7 +4,8 @@
   "workspaces": [
     "packages/core",
     "packages/storage-redis",
-    "packages/delivery-webhook"
+    "packages/delivery-webhook",
+    "examples/express"
   ],
   "homepage": "https://github.com/muze-innovation/totem-otp#readme",
   "bugs": {

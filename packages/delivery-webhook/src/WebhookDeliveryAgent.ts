@@ -14,7 +14,7 @@ export interface WebhookDeliveryAgentOptions {
    * Optional callback function to compute the request body
    * If not provided, a default body structure will be used
    */
-  bodyBuilder?: (otp: IOTPValue) => Record<string, any>
+  bodyBuilder?: (otp: IOTPValue) => Record<string, any> | string
 
   /**
    * Optional HTTP headers to include in the request
@@ -37,7 +37,7 @@ export interface WebhookDeliveryAgentOptions {
 
 export class WebhookDeliveryAgent implements IDeliveryAgent {
   private readonly webhookUrl: string
-  private readonly bodyBuilder: (otp: IOTPValue) => Record<string, any>
+  private readonly bodyBuilder: (otp: IOTPValue) => Record<string, any> | string
   private readonly headers: Record<string, string>
   private readonly method: 'POST' | 'PUT' | 'PATCH'
   private readonly timeout: number
@@ -55,7 +55,7 @@ export class WebhookDeliveryAgent implements IDeliveryAgent {
 
   async sendMessageToAudience(otp: IOTPValue): Promise<string> {
     const body = this.bodyBuilder(otp)
-    const bodyString = JSON.stringify(body)
+    const bodyString = typeof body === 'string' ? body : JSON.stringify(body)
 
     try {
       const response = await this.makeHttpRequest(bodyString)
