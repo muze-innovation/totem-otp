@@ -6,7 +6,7 @@ import type {
   ITotemOTPConfiguration
 } from '../interfaces'
 import { TotemOTP } from '../totem-otp'
-import { OTPUsedError, OTPMismatchedError } from '../errors'
+import { OTPUsedError, OTPMismatchedError, ResendBlockedError } from '../errors'
 
 describe('TotemOTP Integration Tests', () => {
   let mockStorage: jest.Mocked<IOTPStorage>
@@ -18,10 +18,11 @@ describe('TotemOTP Integration Tests', () => {
     jest.clearAllMocks()
 
     mockStorage = {
+      markRequested: jest.fn().mockResolvedValue(0), // 0 means not blocked
+      unmarkRequested: jest.fn().mockResolvedValue(undefined),
       store: jest.fn().mockResolvedValue(undefined),
-      fetch: jest.fn().mockResolvedValue(null),
-      markAsSent: jest.fn().mockResolvedValue(undefined),
-      markAsUsed: jest.fn().mockResolvedValue(1)
+      fetchAndUsed: jest.fn().mockResolvedValue(null),
+      markAsSent: jest.fn().mockResolvedValue(undefined)
     }
 
     mockDeliveryAgent = {
@@ -87,18 +88,27 @@ describe('TotemOTP Integration Tests', () => {
         resendAllowedAtMs: expect.any(Number)
       })
 
+      // Verify request flow
+      expect(mockStorage.markRequested).toHaveBeenCalledWith('email|test@example.com', 120000)
+      expect(mockStorage.store).toHaveBeenCalled()
+      expect(mockDeliveryAgent.sendMessageToAudience).toHaveBeenCalled()
+      expect(mockStorage.markAsSent).toHaveBeenCalled()
+
       // Step 2: Simulate storage returning the OTP for validation
-      mockStorage.fetch.mockResolvedValue({
+      mockStorage.fetchAndUsed.mockResolvedValue({
         ...otpResponse,
         receiptId: 'receipt-123',
-        used: 0
+        used: 1 // After successful validation
       })
 
       // Step 3: Validate OTP
       const validationResult = await totemOTP.validate(otpResponse.reference, otpResponse.value)
 
       expect(validationResult).toBe(1)
-      expect(mockStorage.markAsUsed).toHaveBeenCalledWith(otpResponse.reference)
+      expect(mockStorage.fetchAndUsed).toHaveBeenCalledWith(
+        otpResponse.reference,
+        otpResponse.value
+      )
     })
 
     it('should complete full OTP lifecycle for msisdn with multiple validations', async () => {
@@ -119,94 +129,80 @@ describe('TotemOTP Integration Tests', () => {
       })
 
       // Step 2: Simulate storage returning the OTP for validation
-      mockStorage.fetch.mockResolvedValue({
+      mockStorage.fetchAndUsed.mockResolvedValueOnce({
         ...otpResponse,
         receiptId: 'receipt-456',
-        used: 0
+        used: 1 // First validation
       })
 
       // Step 3: Validate OTP multiple times (allowed up to 3 times)
-      mockStorage.markAsUsed.mockResolvedValueOnce(1)
       const firstValidation = await totemOTP.validate(otpResponse.reference, otpResponse.value)
       expect(firstValidation).toBe(1)
 
-      mockStorage.markAsUsed.mockResolvedValueOnce(2)
+      mockStorage.fetchAndUsed.mockResolvedValueOnce({
+        ...otpResponse,
+        receiptId: 'receipt-456',
+        used: 2 // Second validation
+      })
       const secondValidation = await totemOTP.validate(otpResponse.reference, otpResponse.value)
       expect(secondValidation).toBe(2)
 
-      mockStorage.markAsUsed.mockResolvedValueOnce(3)
+      mockStorage.fetchAndUsed.mockResolvedValueOnce({
+        ...otpResponse,
+        receiptId: 'receipt-456',
+        used: 3 // Third validation
+      })
       const thirdValidation = await totemOTP.validate(otpResponse.reference, otpResponse.value)
       expect(thirdValidation).toBe(3)
 
       // Step 4: Fourth validation should fail
-      mockStorage.markAsUsed.mockResolvedValueOnce(4)
+      mockStorage.fetchAndUsed.mockResolvedValueOnce({
+        ...otpResponse,
+        receiptId: 'receipt-456',
+        used: 4 // Exceeds limit
+      })
       await expect(totemOTP.validate(otpResponse.reference, otpResponse.value)).rejects.toThrow(
         OTPUsedError
       )
     })
 
-    it('should handle resend scenario correctly', async () => {
+    it('should handle blocked recipient scenario', async () => {
       const target: IOTPTarget = {
         type: 'email',
         value: 'test@example.com'
       }
 
-      // Step 1: Request initial OTP
+      // First request succeeds
       const initialOTP = await totemOTP.request(target)
+      expect(initialOTP).toBeDefined()
 
-      // Step 2: Simulate time passing (resend allowed)
-      const pastTime = Date.now() - 130000 // 2 minutes 10 seconds ago
-      mockStorage.fetch.mockResolvedValue({
-        ...initialOTP,
-        resendAllowedAtMs: pastTime,
-        receiptId: 'receipt-initial',
-        used: 0
-      })
+      // Second request is blocked
+      mockStorage.markRequested.mockResolvedValue(60000) // 1 minute remaining
 
-      // Step 3: Request resend
-      const resendOTP = await totemOTP.request(target, initialOTP.reference)
+      await expect(totemOTP.request(target)).rejects.toThrow(ResendBlockedError)
 
-      expect(resendOTP).toEqual({
-        target: target,
-        value: expect.stringMatching(/^[0-9]{6}$/),
-        reference: expect.stringMatching(/^[A-Z0-9]{8}$/),
-        expiresAtMs: expect.any(Number),
-        resendAllowedAtMs: expect.any(Number)
-      })
-
-      // Should have called store with parent reference
-      expect(mockStorage.store).toHaveBeenCalledWith(
-        expect.any(Object),
-        initialOTP.reference,
-        expect.any(Number)
-      )
+      expect(mockStorage.markRequested).toHaveBeenCalledWith('email|test@example.com', 120000)
     })
   })
 
   describe('error scenarios with realistic timing', () => {
-    it('should handle expired OTP validation attempt', async () => {
+    it('should handle validation with wrong OTP after successful request', async () => {
       const target: IOTPTarget = {
         type: 'email',
         value: 'test@example.com'
       }
 
-      const expiredOTP: IOTPValue = {
-        target: target,
-        value: '123456',
-        reference: 'EXPIRED1',
-        expiresAtMs: Date.now() - 10000, // Expired 10 seconds ago
-        resendAllowedAtMs: Date.now() - 10000
-      }
+      // Request OTP
+      const otpResponse = await totemOTP.request(target)
 
-      mockStorage.fetch.mockResolvedValue({
-        ...expiredOTP,
-        receiptId: 'receipt-expired',
-        used: 0
-      })
+      // Try to validate with wrong OTP (fetchAndUsed returns null for wrong combination)
+      mockStorage.fetchAndUsed.mockResolvedValue(null)
 
-      // The validation should still work if OTP matches (expiry is handled by storage/application logic)
-      const result = await totemOTP.validate(expiredOTP.reference, expiredOTP.value)
-      expect(result).toBe(1)
+      await expect(totemOTP.validate(otpResponse.reference, '000000')).rejects.toThrow(
+        OTPMismatchedError
+      )
+
+      expect(mockStorage.fetchAndUsed).toHaveBeenCalledWith(otpResponse.reference, '000000')
     })
 
     it('should handle race condition in concurrent validations', async () => {
@@ -223,14 +219,18 @@ describe('TotemOTP Integration Tests', () => {
         resendAllowedAtMs: Date.now() + 120000
       }
 
-      mockStorage.fetch.mockResolvedValue({
-        ...otp,
-        receiptId: 'receipt-race',
-        used: 0
-      })
-
       // Simulate concurrent validation attempts
-      mockStorage.markAsUsed.mockResolvedValueOnce(1).mockResolvedValueOnce(2) // Second call would exceed limit
+      mockStorage.fetchAndUsed
+        .mockResolvedValueOnce({
+          ...otp,
+          receiptId: 'receipt-race',
+          used: 1 // First validation succeeds
+        })
+        .mockResolvedValueOnce({
+          ...otp,
+          receiptId: 'receipt-race',
+          used: 2 // Second validation exceeds limit for email (limit is 1)
+        })
 
       const validationPromises = [
         totemOTP.validate(otp.reference, otp.value),
@@ -239,37 +239,28 @@ describe('TotemOTP Integration Tests', () => {
 
       const results = await Promise.allSettled(validationPromises)
 
-      // First should succeed, second should fail
+      // First should succeed
       expect(results[0].status).toBe('fulfilled')
       expect((results[0] as PromiseFulfilledResult<number>).value).toBe(1)
 
+      // Second should fail
       expect(results[1].status).toBe('rejected')
       expect((results[1] as PromiseRejectedResult).reason).toBeInstanceOf(OTPUsedError)
     })
 
-    it('should handle validation with wrong OTP after successful request', async () => {
+    it('should handle request failure and cleanup', async () => {
       const target: IOTPTarget = {
         type: 'email',
         value: 'test@example.com'
       }
 
-      // Request OTP
-      const otpResponse = await totemOTP.request(target)
+      // Simulate delivery failure
+      mockDeliveryAgent.sendMessageToAudience.mockRejectedValue(new Error('Delivery failed'))
 
-      // Simulate storage returning correct OTP
-      mockStorage.fetch.mockResolvedValue({
-        ...otpResponse,
-        receiptId: 'receipt-wrong',
-        used: 0
-      })
+      await expect(totemOTP.request(target)).rejects.toThrow('Delivery failed')
 
-      // Try to validate with wrong OTP
-      await expect(totemOTP.validate(otpResponse.reference, '000000')).rejects.toThrow(
-        OTPMismatchedError
-      )
-
-      // markAsUsed should not be called for wrong OTP
-      expect(mockStorage.markAsUsed).not.toHaveBeenCalled()
+      // Should unmark the recipient on failure
+      expect(mockStorage.unmarkRequested).toHaveBeenCalledWith('email|test@example.com')
     })
   })
 
@@ -300,6 +291,11 @@ describe('TotemOTP Integration Tests', () => {
 
       const callOrder: string[] = []
 
+      mockStorage.markRequested.mockImplementation(async () => {
+        callOrder.push('markRequested')
+        return 0
+      })
+
       mockStorage.store.mockImplementation(async () => {
         callOrder.push('store')
       })
@@ -310,7 +306,7 @@ describe('TotemOTP Integration Tests', () => {
 
       await totemOTP.request(target)
 
-      expect(callOrder).toEqual(['store', 'markAsSent'])
+      expect(callOrder).toEqual(['markRequested', 'store', 'markAsSent'])
     })
 
     it('should handle storage operations that take time', async () => {

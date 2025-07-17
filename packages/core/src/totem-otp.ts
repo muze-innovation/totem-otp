@@ -57,6 +57,7 @@ export class TotemOTP implements ITotemOTP {
       }
     } catch (e) {
       await this.invalidateReceipient(target)
+      throw e
     }
 
     return otpVal

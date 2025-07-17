@@ -13,8 +13,7 @@ import {
   NoSchemaMatchedTargetConfigError,
   OTPMismatchedError,
   OTPUsedError,
-  ResendBlockedError,
-  UnknownReferenceError
+  ResendBlockedError
 } from '../errors'
 
 describe('TotemOTP', () => {
@@ -41,12 +40,13 @@ describe('TotemOTP', () => {
   beforeEach(() => {
     jest.clearAllMocks()
 
-    // Mock storage
+    // Mock storage with new API
     mockStorage = {
+      markRequested: jest.fn().mockResolvedValue(0), // 0 means not blocked
+      unmarkRequested: jest.fn().mockResolvedValue(undefined),
       store: jest.fn().mockResolvedValue(undefined),
-      fetch: jest.fn().mockResolvedValue(null),
-      markAsSent: jest.fn().mockResolvedValue(undefined),
-      markAsUsed: jest.fn().mockResolvedValue(1)
+      fetchAndUsed: jest.fn().mockResolvedValue(null),
+      markAsSent: jest.fn().mockResolvedValue(undefined)
     }
 
     // Mock delivery agent
@@ -98,7 +98,7 @@ describe('TotemOTP', () => {
 
   describe('request', () => {
     describe('success cases', () => {
-      it('should successfully request OTP without parent reference', async () => {
+      it('should successfully request OTP', async () => {
         const result = await totemOTP.request(mockTarget)
 
         expect(result).toEqual(
@@ -111,6 +111,13 @@ describe('TotemOTP', () => {
           })
         )
 
+        // Check recipient validation was called
+        expect(mockStorage.markRequested).toHaveBeenCalledWith(
+          'email|test@example.com',
+          120000 // canResendIn
+        )
+
+        // Check storage was called
         expect(mockStorage.store).toHaveBeenCalledWith(
           expect.objectContaining({
             target: mockTarget,
@@ -119,10 +126,10 @@ describe('TotemOTP', () => {
             expiresAtMs: expect.any(Number),
             resendAllowedAtMs: expect.any(Number)
           }),
-          null,
-          expect.any(Number)
+          expect.any(Number) // deletableAt
         )
 
+        // Check delivery agent was called
         expect(mockDeliveryAgent.sendMessageToAudience).toHaveBeenCalledWith(
           expect.objectContaining({
             target: mockTarget,
@@ -133,47 +140,27 @@ describe('TotemOTP', () => {
           })
         )
 
+        // Check markAsSent was called
         expect(mockStorage.markAsSent).toHaveBeenCalledWith(
           expect.stringMatching(/^[A-Z0-9]{8}$/),
+          expect.stringMatching(/^[0-9]{6}$/),
           'receipt-123'
         )
       })
 
-      it('should successfully request OTP with valid parent reference', async () => {
-        const pastTime = Date.now() - 120000 // 2 minutes ago
-        const mockParentOTP = {
-          ...mockOTPValue,
-          resendAllowedAtMs: pastTime
+      it('should use unique identifier for recipient key when provided', async () => {
+        const targetWithId = {
+          ...mockTarget,
+          uniqueIdentifier: 'custom-id-123'
         }
 
-        mockStorage.fetch.mockResolvedValue({
-          ...mockParentOTP,
-          receiptId: 'receipt-456',
-          used: 0
-        })
+        await totemOTP.request(targetWithId)
 
-        const result = await totemOTP.request(mockTarget, 'PARENT123')
-
-        expect(result).toEqual(
-          expect.objectContaining({
-            target: mockTarget,
-            value: expect.stringMatching(/^[0-9]{6}$/),
-            reference: expect.stringMatching(/^[A-Z0-9]{8}$/),
-            expiresAtMs: expect.any(Number),
-            resendAllowedAtMs: expect.any(Number)
-          })
-        )
-
-        expect(mockStorage.fetch).toHaveBeenCalledWith('PARENT123')
-        expect(mockStorage.store).toHaveBeenCalledWith(
-          expect.any(Object),
-          'PARENT123',
-          expect.any(Number)
-        )
+        expect(mockStorage.markRequested).toHaveBeenCalledWith('custom-id-123', 120000)
       })
 
       it('should not call markAsSent if storage does not implement it', async () => {
-        mockStorage.markAsSent = undefined
+        delete mockStorage.markAsSent
 
         const result = await totemOTP.request(mockTarget)
 
@@ -184,32 +171,14 @@ describe('TotemOTP', () => {
     })
 
     describe('error cases', () => {
-      it('should throw UnknownReferenceError when parent reference does not exist', async () => {
-        mockStorage.fetch.mockResolvedValue(null)
+      // Note: This test case is no longer applicable since the new API doesn't support parent references
 
-        await expect(totemOTP.request(mockTarget, 'INVALID_REF')).rejects.toThrow(
-          UnknownReferenceError
-        )
+      it('should throw ResendBlockedError when recipient is blocked', async () => {
+        mockStorage.markRequested.mockResolvedValue(60000) // 1 minute remaining
 
-        expect(mockStorage.fetch).toHaveBeenCalledWith('INVALID_REF')
-      })
+        await expect(totemOTP.request(mockTarget)).rejects.toThrow(ResendBlockedError)
 
-      it('should throw ResendBlockedError when resend is not allowed yet', async () => {
-        const futureTime = Date.now() + 60000 // 1 minute in future
-        const mockParentOTP = {
-          ...mockOTPValue,
-          resendAllowedAtMs: futureTime
-        }
-
-        mockStorage.fetch.mockResolvedValue({
-          ...mockParentOTP,
-          receiptId: 'receipt-456',
-          used: 0
-        })
-
-        await expect(totemOTP.request(mockTarget, 'PARENT123')).rejects.toThrow(ResendBlockedError)
-
-        expect(mockStorage.fetch).toHaveBeenCalledWith('PARENT123')
+        expect(mockStorage.markRequested).toHaveBeenCalledWith('email|test@example.com', 120000)
       })
 
       it('should throw NoSchemaMatchedTargetConfigError when no schema matches', async () => {
@@ -230,21 +199,23 @@ describe('TotemOTP', () => {
         expect(mockDeliveryAgentConfig.match).toHaveBeenCalledWith(mockTarget)
       })
 
-      it('should handle delivery agent failure', async () => {
+      it('should handle delivery agent failure and unmark recipient', async () => {
         mockDeliveryAgent.sendMessageToAudience.mockRejectedValue(new Error('Delivery failed'))
 
         await expect(totemOTP.request(mockTarget)).rejects.toThrow('Delivery failed')
 
         expect(mockStorage.store).toHaveBeenCalled()
         expect(mockDeliveryAgent.sendMessageToAudience).toHaveBeenCalled()
+        expect(mockStorage.unmarkRequested).toHaveBeenCalledWith('email|test@example.com')
       })
 
-      it('should handle storage failure', async () => {
+      it('should handle storage failure and unmark recipient', async () => {
         mockStorage.store.mockRejectedValue(new Error('Storage failed'))
 
         await expect(totemOTP.request(mockTarget)).rejects.toThrow('Storage failed')
 
         expect(mockStorage.store).toHaveBeenCalled()
+        expect(mockStorage.unmarkRequested).toHaveBeenCalledWith('email|test@example.com')
       })
     })
   })
@@ -255,100 +226,79 @@ describe('TotemOTP', () => {
         const mockStoredOTP = {
           ...mockOTPValue,
           receiptId: 'receipt-123',
-          used: 0
+          used: 1 // After validation, used count is 1
         }
 
-        mockStorage.fetch.mockResolvedValue(mockStoredOTP)
-        mockStorage.markAsUsed.mockResolvedValue(1)
+        mockStorage.fetchAndUsed.mockResolvedValue(mockStoredOTP)
 
         const result = await totemOTP.validate('REF123', '123456')
 
         expect(result).toBe(1)
-        expect(mockStorage.fetch).toHaveBeenCalledWith('REF123')
-        expect(mockStorage.markAsUsed).toHaveBeenCalledWith('REF123')
+        expect(mockStorage.fetchAndUsed).toHaveBeenCalledWith('REF123', '123456')
       })
 
       it('should handle multiple validation attempts within limit', async () => {
         const mockStoredOTP = {
           ...mockOTPValue,
           receiptId: 'receipt-123',
-          used: 0
+          used: 2 // Second validation
         }
 
-        mockStorage.fetch.mockResolvedValue(mockStoredOTP)
-        mockStorage.markAsUsed.mockResolvedValue(1)
+        mockStorage.fetchAndUsed.mockResolvedValue(mockStoredOTP)
         mockSchema.aging.successValidateCount = 3
 
         const result = await totemOTP.validate('REF123', '123456')
 
-        expect(result).toBe(1)
-        expect(mockStorage.markAsUsed).toHaveBeenCalledWith('REF123')
+        expect(result).toBe(2)
+        expect(mockStorage.fetchAndUsed).toHaveBeenCalledWith('REF123', '123456')
       })
     })
 
     describe('error cases', () => {
-      it('should throw UnknownReferenceError when reference does not exist', async () => {
-        mockStorage.fetch.mockResolvedValue(null)
+      it('should throw OTPMismatchedError when reference/value does not exist', async () => {
+        mockStorage.fetchAndUsed.mockResolvedValue(null)
 
-        await expect(totemOTP.validate('INVALID_REF', '123456')).rejects.toThrow(
-          UnknownReferenceError
-        )
+        await expect(totemOTP.validate('INVALID_REF', '123456')).rejects.toThrow(OTPMismatchedError)
 
-        expect(mockStorage.fetch).toHaveBeenCalledWith('INVALID_REF')
+        expect(mockStorage.fetchAndUsed).toHaveBeenCalledWith('INVALID_REF', '123456')
       })
 
       it('should throw OTPMismatchedError when OTP value does not match', async () => {
-        const mockStoredOTP = {
-          ...mockOTPValue,
-          receiptId: 'receipt-123',
-          used: 0
-        }
-
-        mockStorage.fetch.mockResolvedValue(mockStoredOTP)
+        // fetchAndUsed would return null for wrong combination of reference and value
+        mockStorage.fetchAndUsed.mockResolvedValue(null)
 
         await expect(totemOTP.validate('REF123', '654321')).rejects.toThrow(OTPMismatchedError)
 
-        expect(mockStorage.fetch).toHaveBeenCalledWith('REF123')
+        expect(mockStorage.fetchAndUsed).toHaveBeenCalledWith('REF123', '654321')
       })
 
       it('should throw OTPUsedError when OTP has been used too many times', async () => {
         const mockStoredOTP = {
           ...mockOTPValue,
           receiptId: 'receipt-123',
-          used: 0
+          used: 2 // Exceeds successValidateCount of 1
         }
 
-        mockStorage.fetch.mockResolvedValue(mockStoredOTP)
-        mockStorage.markAsUsed.mockResolvedValue(2)
+        mockStorage.fetchAndUsed.mockResolvedValue(mockStoredOTP)
         mockSchema.aging.successValidateCount = 1
 
         await expect(totemOTP.validate('REF123', '123456')).rejects.toThrow(OTPUsedError)
 
-        expect(mockStorage.markAsUsed).toHaveBeenCalledWith('REF123')
+        expect(mockStorage.fetchAndUsed).toHaveBeenCalledWith('REF123', '123456')
       })
 
-      it('should handle storage fetch failure', async () => {
-        mockStorage.fetch.mockRejectedValue(new Error('Storage fetch failed'))
+      it('should handle storage fetchAndUsed failure', async () => {
+        mockStorage.fetchAndUsed.mockRejectedValue(new Error('Storage fetchAndUsed failed'))
 
-        await expect(totemOTP.validate('REF123', '123456')).rejects.toThrow('Storage fetch failed')
+        await expect(totemOTP.validate('REF123', '123456')).rejects.toThrow(
+          'Storage fetchAndUsed failed'
+        )
 
-        expect(mockStorage.fetch).toHaveBeenCalledWith('REF123')
+        expect(mockStorage.fetchAndUsed).toHaveBeenCalledWith('REF123', '123456')
       })
 
-      it('should handle storage markAsUsed failure', async () => {
-        const mockStoredOTP = {
-          ...mockOTPValue,
-          receiptId: 'receipt-123',
-          used: 0
-        }
-
-        mockStorage.fetch.mockResolvedValue(mockStoredOTP)
-        mockStorage.markAsUsed.mockRejectedValue(new Error('Mark as used failed'))
-
-        await expect(totemOTP.validate('REF123', '123456')).rejects.toThrow('Mark as used failed')
-
-        expect(mockStorage.markAsUsed).toHaveBeenCalledWith('REF123')
-      })
+      // Note: In the new API, marking as used is handled by fetchAndUsed internally
+      // so there's no separate markAsUsed failure to test
     })
   })
 
@@ -417,7 +367,8 @@ describe('TotemOTP', () => {
   })
 
   describe('edge cases', () => {
-    it('should handle concurrent requests', async () => {
+    it('should handle concurrent requests when not blocked', async () => {
+      // All requests should succeed since markRequested returns 0 (not blocked)
       const requests = Array(5)
         .fill(null)
         .map(() => totemOTP.request(mockTarget))
@@ -437,6 +388,7 @@ describe('TotemOTP', () => {
         )
       })
 
+      expect(mockStorage.markRequested).toHaveBeenCalledTimes(5)
       expect(mockStorage.store).toHaveBeenCalledTimes(5)
       expect(mockDeliveryAgent.sendMessageToAudience).toHaveBeenCalledTimes(5)
     })
@@ -461,4 +413,3 @@ describe('TotemOTP', () => {
     })
   })
 })
-
