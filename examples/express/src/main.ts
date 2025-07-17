@@ -3,7 +3,6 @@
 import 'dotenv/config'
 import type { IOTPTarget, IOTPValue } from 'totem-otp'
 import express from 'express'
-import cors from 'cors'
 import { createClient } from 'redis'
 import { TotemOTP } from 'totem-otp'
 import { RedisOTPStorage } from 'totem-otp-storage-redis'
@@ -13,7 +12,6 @@ const app = express()
 const PORT = process.env.PORT || 3000
 
 // Middleware
-app.use(cors())
 app.use(express.json())
 
 // Global variables for TotemOTP instance
@@ -107,15 +105,6 @@ async function initializeTotemOTP() {
 
   console.log('TotemOTP initialized successfully')
 }
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    redis: redisClient?.isReady ? 'connected' : 'disconnected'
-  })
-})
 
 // Request OTP endpoint
 app.post('/otp/request', async (req, res) => {
@@ -236,25 +225,6 @@ app.post('/otp/validate', async (req, res) => {
   }
 })
 
-// Mock webhook endpoint for testing (simulates external webhook receiver)
-app.post('/webhook/:type', (req, res) => {
-  const { type } = req.params
-  const { target, otp, reference } = req.body
-
-  console.log(`Mock ${type} webhook received:`, {
-    target: target?.value,
-    otpLength: otp?.length,
-    reference
-  })
-
-  // Simulate webhook processing
-  res.json({
-    success: true,
-    messageId: `mock-${type}-${Date.now()}`,
-    timestamp: new Date().toISOString()
-  })
-})
-
 // Error handling middleware
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled error:', error)
@@ -271,7 +241,6 @@ async function startServer() {
 
     const server = app.listen(PORT, () => {
       console.log(`TotemOTP Example Server running on port ${PORT}`)
-      console.log(`Health check: http://localhost:${PORT}/health`)
       console.log(`Request OTP: POST http://localhost:${PORT}/otp/request`)
       console.log(`Validate OTP: POST http://localhost:${PORT}/otp/validate`)
     })

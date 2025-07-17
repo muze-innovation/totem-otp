@@ -5,4 +5,5 @@
 [x] Storage to have a uniqueKey targetting that used as a Banned Policy instead.
 [x] Storage should use reference + otpValue as a search key. Forcing API to ignoring the first fetch.
 [x] Prepare Example
-[ ] Publish application
+[x] Publish application
+[ ] Add version tag, update README on the main package.
