@@ -1,12 +1,11 @@
 {
   "name": "totem-otp-delivery-webhook",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Webhook delivery agent for TotemOTP",
   "main": "lib/cjs/src/index.js",
-  "module": "lib/esm/src/index.js",
-  "typings": "lib/esm/src/index.d.ts",
+  "typings": "lib/cjs/src/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.esm.json && tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
     "clean": "rm -rf node_modules/ && rm -rf lib/",
     "test": "jest"
   },
