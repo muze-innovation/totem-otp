@@ -1,6 +1,6 @@
 {
   "name": "totem-otp-storage-redis",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Redis storage implementation for TotemOTP",
   "main": "lib/cjs/src/index.js",
   "typings": "lib/cjs/src/index.d.ts",
