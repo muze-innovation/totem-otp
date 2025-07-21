@@ -1,5 +1,5 @@
 import type { IOTPValue, IOTPStorage } from 'totem-otp'
-import type { RedisClientType } from 'redis'
+import type { Cluster, Redis } from 'ioredis'
 
 export interface RedisOTPStorageOptions {
   /**
@@ -13,7 +13,7 @@ export class RedisOTPStorage implements IOTPStorage {
   private readonly keyPrefix: string
 
   constructor(
-    private readonly redis: RedisClientType,
+    private readonly redis: Redis | Cluster,
     options: RedisOTPStorageOptions = {}
   ) {
     this.keyPrefix = options.keyPrefix || 'totem-otp'
@@ -51,10 +51,12 @@ export class RedisOTPStorage implements IOTPStorage {
       end
     `
 
-    const result = (await this.redis.eval(luaScript, {
-      keys: [blockKey],
-      arguments: [blockedForMs.toString()]
-    })) as number
+    const result = (await this.redis.eval(
+      luaScript,
+      1,
+      blockKey,
+      blockedForMs.toString()
+    )) as number
 
     return result
   }
@@ -98,7 +100,7 @@ export class RedisOTPStorage implements IOTPStorage {
     const pipeline = this.redis.multi()
 
     // Store the hash
-    pipeline.hSet(key, hashData)
+    pipeline.hset(key, hashData)
 
     // Set expiration time
     if (ttlSeconds > 0) {
@@ -124,8 +126,8 @@ export class RedisOTPStorage implements IOTPStorage {
 
     // Use a pipeline to atomically fetch and increment used counter
     const pipeline = this.redis.multi()
-    pipeline.hGetAll(key)
-    pipeline.hIncrBy(key, 'used', 1)
+    pipeline.hgetall(key)
+    pipeline.hincrby(key, 'used', 1)
 
     const results = await pipeline.exec()
 
@@ -133,30 +135,30 @@ export class RedisOTPStorage implements IOTPStorage {
       return null
     }
 
-    // Redis pipeline results are wrapped in reply arrays
-    const data: Record<string, string> = results[0] as any
-    const newUsedCount = +results[1]
+    // Redis pipeline results are [error, result] pairs
+    const hgetallResult = results[0]![1] as Record<string, string>
+    const hincrbyResult = results[1]![1] as number
 
-    if (!data || Object.keys(data).length === 0) {
+    if (!hgetallResult || Object.keys(hgetallResult).length === 0) {
       return null
     }
 
     // Parse the stored data back to IOTPValue
     const otpValueResult: IOTPValue & { receiptId?: string; used: number } = {
       target: {
-        type: data.target_type as 'email' | 'msisdn',
-        value: data.target_value,
+        type: hgetallResult.target_type as 'email' | 'msisdn',
+        value: hgetallResult.target_value,
         uniqueIdentifier:
-          data.target_unique_id !== `${data.target_type}|${data.target_value}`
-            ? data.target_unique_id
+          hgetallResult.target_unique_id !== `${hgetallResult.target_type}|${hgetallResult.target_value}`
+            ? hgetallResult.target_unique_id
             : undefined
       },
-      value: data.otp_value,
+      value: hgetallResult.otp_value,
       reference: otpReference,
-      expiresAtMs: parseInt(data.expires_at_ms),
-      resendAllowedAtMs: parseInt(data.resend_allowed_at_ms),
-      used: newUsedCount,
-      receiptId: data.receipt_id || undefined
+      expiresAtMs: parseInt(hgetallResult.expires_at_ms),
+      resendAllowedAtMs: parseInt(hgetallResult.resend_allowed_at_ms),
+      used: hincrbyResult,
+      receiptId: hgetallResult.receipt_id || undefined
     }
 
     return otpValueResult
@@ -172,7 +174,7 @@ export class RedisOTPStorage implements IOTPStorage {
    */
   async markAsSent(otpReference: string, otpValue: string, receiptId: string): Promise<void> {
     const key = this.getCompositeKey(otpReference, otpValue)
-    await this.redis.hSet(key, 'receipt_id', receiptId)
+    await this.redis.hset(key, 'receipt_id', receiptId)
   }
 
   /**

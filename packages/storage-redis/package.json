@@ -12,7 +12,9 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "roots": ["<rootDir>/src"],
+    "roots": [
+      "<rootDir>/src"
+    ],
     "testMatch": [
       "**/__tests__/**/*.test.ts",
       "**/?(*.)+(spec|test).ts"
@@ -33,6 +35,7 @@
   "keywords": [
     "otp",
     "redis",
+    "ioredis",
     "storage"
   ],
   "author": "Muze Innovation",
@@ -49,9 +52,10 @@
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",
+    "ioredis": "^5.3",
     "jest": "^30.0.4",
+    "redis-memory-server": "^0.10.0",
     "ts-jest": "^29.4.0",
-    "typescript": "^5.8.3",
-    "redis-memory-server": "^0.10.0"
+    "typescript": "^5.8.3"
   }
 }

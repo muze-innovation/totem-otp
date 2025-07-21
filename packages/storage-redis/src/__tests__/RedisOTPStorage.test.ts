@@ -1,12 +1,12 @@
 import type { IOTPValue } from 'totem-otp'
 
-import { createClient, RedisClientType } from 'redis'
+import { Redis } from 'ioredis'
 import { RedisMemoryServer } from 'redis-memory-server'
 import { RedisOTPStorage } from '../RedisOTPStorage'
 
 describe('RedisOTPStorage', () => {
   let redisServer: RedisMemoryServer
-  let redisClient: RedisClientType
+  let redisClient: Redis
   let storage: RedisOTPStorage
 
   const mockOTPValue: IOTPValue = {
@@ -28,24 +28,17 @@ describe('RedisOTPStorage', () => {
     const port = await redisServer.getPort()
 
     // Create Redis client
-    redisClient = createClient({
-      socket: {
-        host,
-        port
-      }
-    })
-
-    await redisClient.connect()
+    redisClient = new Redis(port, host)
   })
 
   afterAll(async () => {
-    await redisClient.disconnect()
+    redisClient.disconnect()
     await redisServer.stop()
   })
 
   beforeEach(async () => {
     // Clear Redis database
-    await redisClient.flushDb()
+    await redisClient.flushdb()
 
     // Create fresh storage instance
     storage = new RedisOTPStorage(redisClient)
@@ -76,7 +69,7 @@ describe('RedisOTPStorage', () => {
       const exists = await redisClient.exists(blockKey)
       expect(exists).toBe(1)
 
-      const ttl = await redisClient.pTTL(blockKey)
+      const ttl = await redisClient.pttl(blockKey)
       expect(ttl).toBeGreaterThan(110000) // Should be close to 2 minutes
       expect(ttl).toBeLessThanOrEqual(120000)
     })
@@ -86,7 +79,7 @@ describe('RedisOTPStorage', () => {
       await storage.markRequested(recipientKey, blockedForMs)
 
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
       // Second request should return remaining TTL
       const result = await storage.markRequested(recipientKey, blockedForMs)
@@ -96,15 +89,15 @@ describe('RedisOTPStorage', () => {
 
     it('should handle concurrent requests atomically', async () => {
       // Multiple concurrent requests
-      const promises = Array(5).fill(null).map(() => 
-        storage.markRequested(recipientKey, blockedForMs)
-      )
+      const promises = Array(5)
+        .fill(null)
+        .map(() => storage.markRequested(recipientKey, blockedForMs))
 
       const results = await Promise.all(promises)
 
       // First request should return 0, others should return TTL
-      const firstRequest = results.filter(r => r === 0)
-      const blockedRequests = results.filter(r => r > 0)
+      const firstRequest = results.filter((r) => r === 0)
+      const blockedRequests = results.filter((r) => r > 0)
 
       expect(firstRequest).toHaveLength(1)
       expect(blockedRequests).toHaveLength(4)
@@ -112,13 +105,13 @@ describe('RedisOTPStorage', () => {
 
     it('should reset block after TTL expires', async () => {
       const shortBlockMs = 50 // 50ms
-      
+
       // First request
       const result1 = await storage.markRequested(recipientKey, shortBlockMs)
       expect(result1).toBe(0)
 
       // Wait for expiration
-      await new Promise(resolve => setTimeout(resolve, 60))
+      await new Promise((resolve) => setTimeout(resolve, 60))
 
       // Should be unblocked now
       const result2 = await storage.markRequested(recipientKey, blockedForMs)
@@ -145,7 +138,7 @@ describe('RedisOTPStorage', () => {
 
     it('should work with custom key prefix', async () => {
       const customStorage = new RedisOTPStorage(redisClient, { keyPrefix: 'custom-otp' })
-      
+
       const result = await customStorage.markRequested(recipientKey, blockedForMs)
       expect(result).toBe(0)
 
@@ -183,7 +176,7 @@ describe('RedisOTPStorage', () => {
 
     it('should work with custom key prefix', async () => {
       const customStorage = new RedisOTPStorage(redisClient, { keyPrefix: 'custom-otp' })
-      
+
       await customStorage.markRequested(recipientKey, blockedForMs)
       await expect(customStorage.unmarkRequested(recipientKey)).resolves.not.toThrow()
     })
@@ -206,7 +199,7 @@ describe('RedisOTPStorage', () => {
       expect(ttl).toBeLessThanOrEqual(1800)
 
       // Verify stored data
-      const storedData = await redisClient.hGetAll(key)
+      const storedData = await redisClient.hgetall(key)
       expect(storedData.target_type).toBe('email')
       expect(storedData.target_value).toBe('test@example.com')
       expect(storedData.target_unique_id).toBe('user-123')
@@ -228,7 +221,7 @@ describe('RedisOTPStorage', () => {
       await storage.store(otpWithoutUniqueId, deletableAt)
 
       const key = 'totem-otp:REF123:123456'
-      const storedData = await redisClient.hGetAll(key)
+      const storedData = await redisClient.hgetall(key)
       expect(storedData.target_unique_id).toBe('email|test@example.com')
     })
 
@@ -279,7 +272,7 @@ describe('RedisOTPStorage', () => {
 
       // Verify the used counter was actually incremented in Redis
       const key = 'totem-otp:REF123:123456'
-      const usedCount = await redisClient.hGet(key, 'used')
+      const usedCount = await redisClient.hget(key, 'used')
       expect(usedCount).toBe('1')
     })
 
@@ -329,9 +322,9 @@ describe('RedisOTPStorage', () => {
     })
 
     it('should handle concurrent fetch operations atomically', async () => {
-      const promises = Array(5).fill(null).map(() => 
-        storage.fetchAndUsed('REF123', '123456')
-      )
+      const promises = Array(5)
+        .fill(null)
+        .map(() => storage.fetchAndUsed('REF123', '123456'))
 
       const results = await Promise.all(promises)
 
@@ -343,7 +336,7 @@ describe('RedisOTPStorage', () => {
 
       // Final used count should be 5
       const key = 'totem-otp:REF123:123456'
-      const finalUsedCount = await redisClient.hGet(key, 'used')
+      const finalUsedCount = await redisClient.hget(key, 'used')
       expect(finalUsedCount).toBe('5')
     })
   })
@@ -358,7 +351,7 @@ describe('RedisOTPStorage', () => {
       await storage.markAsSent('REF123', '123456', 'receipt-789')
 
       const key = 'totem-otp:REF123:123456'
-      const receiptId = await redisClient.hGet(key, 'receipt_id')
+      const receiptId = await redisClient.hget(key, 'receipt_id')
       expect(receiptId).toBe('receipt-789')
     })
 
@@ -367,7 +360,7 @@ describe('RedisOTPStorage', () => {
       await storage.markAsSent('REF123', '123456', 'receipt-new')
 
       const key = 'totem-otp:REF123:123456'
-      const receiptId = await redisClient.hGet(key, 'receipt_id')
+      const receiptId = await redisClient.hget(key, 'receipt_id')
       expect(receiptId).toBe('receipt-new')
     })
 
@@ -385,7 +378,7 @@ describe('RedisOTPStorage', () => {
 
       // Check that second OTP is not affected
       const key2 = 'totem-otp:REF123:654321'
-      const receiptId2 = await redisClient.hGet(key2, 'receipt_id')
+      const receiptId2 = await redisClient.hget(key2, 'receipt_id')
       expect(receiptId2).toBe(null)
     })
   })
@@ -526,7 +519,7 @@ describe('RedisOTPStorage', () => {
       expect(result2).toBeGreaterThan(0)
 
       // Wait for block to expire
-      await new Promise(resolve => setTimeout(resolve, 150))
+      await new Promise((resolve) => setTimeout(resolve, 150))
 
       // Should be unblocked
       const result3 = await storage.markRequested(recipientKey, shortBlockMs)
@@ -536,18 +529,13 @@ describe('RedisOTPStorage', () => {
 
   describe('error handling', () => {
     it('should handle Redis connection errors gracefully', async () => {
-      const disconnectedClient = createClient({
-        socket: {
-          host: 'localhost',
-          port: 0 // Invalid port
-        }
-      }) as RedisClientType
-
+      const disconnectedClient = new Redis(0, 'localhost')
+      disconnectedClient.disconnect()
       const errorStorage = new RedisOTPStorage(disconnectedClient)
-
       await expect(errorStorage.store(mockOTPValue, Date.now() + 1800000)).rejects.toThrow()
       await expect(errorStorage.markRequested('test-key', 120000)).rejects.toThrow()
       await expect(errorStorage.fetchAndUsed('REF123', '123456')).rejects.toThrow()
     })
   })
 })
+
