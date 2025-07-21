@@ -45,10 +45,8 @@
   },
   "homepage": "https://github.com/muze-innovation/totem-otp#readme",
   "peerDependencies": {
+    "ioredis": "~5.3",
     "totem-otp": "~0.0.2"
-  },
-  "dependencies": {
-    "redis": "^4.6.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",
