@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "lib": ["es2020"],
+    "moduleResolution": "node",
+    "noUnusedLocals": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "target": "es2020",
+    "outDir": "./lib/esm",
+    "baseUrl": ".",
+    "paths": {
+      "totem-otp": ["../core/src"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules"],
+  "references": [
+    { "path": "../core" }
+  ]
+}

@@ -7,6 +7,7 @@ import { createClient } from 'redis'
 import { TotemOTP } from 'totem-otp'
 import { RedisOTPStorage } from 'totem-otp-storage-redis'
 import { WebhookDeliveryAgent } from 'totem-otp-delivery-webhook'
+import { JoseValidationReceiptGenerator } from 'totem-otp-validation-receipt-jose'
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -37,6 +38,11 @@ async function initializeTotemOTP() {
     console.info(`Using ${discordWebhookUrl}`)
   }
 
+  const jwtSecret = process.env.JWT_SECRET || 'example-jwt-secret-key-32-characters-min'
+  if (jwtSecret === 'example-jwt-secret-key-32-characters-min') {
+    console.warn('⚠️  Using default JWT secret! Set JWT_SECRET environment variable for production.')
+  }
+
   await redisClient.connect()
   console.log('Connected to Redis')
 
@@ -58,6 +64,14 @@ async function initializeTotemOTP() {
     webhookUrl: discordWebhookUrl,
     bodyBuilder: discordOTPMessageBuilder,
     timeout: 5000
+  })
+
+  // Initialize JWT validation receipt generator
+  const validationReceiptGenerator = new JoseValidationReceiptGenerator({
+    sharedSecret: jwtSecret,
+    expirationTimeMs: 60 * 60 * 1000, // 1 hour
+    issuer: 'totem-otp-example',
+    audience: 'totem-otp-client'
   })
 
   // Configure TotemOTP
@@ -100,7 +114,8 @@ async function initializeTotemOTP() {
         match: (target: IOTPTarget) => target.type === 'msisdn',
         agent: () => smsWebhookAgent
       }
-    ]
+    ],
+    validationReceipt: () => validationReceiptGenerator
   })
 
   console.log('TotemOTP initialized successfully')
@@ -171,7 +186,7 @@ app.post('/otp/request', async (req, res) => {
   }
 })
 
-// Validate OTP endpoint
+// Validate OTP endpoint (basic validation)
 app.post('/otp/validate', async (req, res) => {
   try {
     const { reference, otp } = req.body
@@ -225,6 +240,131 @@ app.post('/otp/validate', async (req, res) => {
   }
 })
 
+// Validate OTP and get JWT receipt endpoint
+app.post('/otp/validate-with-receipt', async (req, res) => {
+  try {
+    const { reference, otp, purpose } = req.body
+
+    // Validate request body
+    if (!reference || !otp || !purpose) {
+      return res.status(400).json({
+        error: 'Invalid request body',
+        message: 'reference, otp, and purpose are required'
+      })
+    }
+
+    // Validate purpose is an array
+    if (!Array.isArray(purpose)) {
+      return res.status(400).json({
+        error: 'Invalid purpose format',
+        message: 'purpose must be an array of strings'
+      })
+    }
+
+    // Validate OTP and get JWT receipt
+    const jwtReceipt = await totemOTP.validate(reference, otp, purpose)
+
+    res.json({
+      success: true,
+      valid: true,
+      jwtReceipt,
+      purpose,
+      message: 'OTP validated successfully with JWT receipt'
+    })
+  } catch (error: any) {
+    console.error('Error validating OTP with receipt:', error)
+
+    // Handle specific errors
+    if (error.name === 'OTPMismatchedError') {
+      return res.status(400).json({
+        success: false,
+        valid: false,
+        error: 'Invalid OTP',
+        message: 'The provided OTP does not match or does not exist'
+      })
+    }
+
+    if (error.name === 'OTPUsedError') {
+      return res.status(400).json({
+        success: false,
+        valid: false,
+        error: 'OTP already used',
+        message: 'This OTP has been used too many times',
+        usedCount: error.usedCount || parseInt(error.message.split(' ').pop()) || 0
+      })
+    }
+
+    if (error.name === 'UnmatchedValidationReceipt') {
+      return res.status(500).json({
+        success: false,
+        valid: false,
+        error: 'Validation receipt configuration error',
+        message: 'JWT validation receipt generator is not properly configured'
+      })
+    }
+
+    res.status(500).json({
+      success: false,
+      valid: false,
+      error: 'Internal server error',
+      message: error.message
+    })
+  }
+})
+
+// Validate JWT receipt endpoint
+app.post('/receipt/validate', async (req, res) => {
+  try {
+    const { reference, receipt, purpose } = req.body
+
+    // Validate request body
+    if (!reference || !receipt || !purpose) {
+      return res.status(400).json({
+        error: 'Invalid request body',
+        message: 'reference, receipt, and purpose are required'
+      })
+    }
+
+    // Validate JWT receipt
+    const validationResult = await totemOTP.validateReceipt(reference, receipt, purpose)
+
+    res.json({
+      success: true,
+      valid: true,
+      validationResult,
+      message: 'JWT receipt validated successfully'
+    })
+  } catch (error: any) {
+    console.error('Error validating JWT receipt:', error)
+
+    // Handle specific errors
+    if (error.name === 'ValidationReceiptError' || error.message.includes('Invalid JWT receipt')) {
+      return res.status(400).json({
+        success: false,
+        valid: false,
+        error: 'Invalid JWT receipt',
+        message: error.message
+      })
+    }
+
+    if (error.name === 'UnmatchedValidationReceipt') {
+      return res.status(500).json({
+        success: false,
+        valid: false,
+        error: 'Validation receipt configuration error',
+        message: 'JWT validation receipt generator is not properly configured'
+      })
+    }
+
+    res.status(500).json({
+      success: false,
+      valid: false,
+      error: 'Internal server error',
+      message: error.message
+    })
+  }
+})
+
 // Error handling middleware
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled error:', error)
@@ -241,8 +381,11 @@ async function startServer() {
 
     const server = app.listen(PORT, () => {
       console.log(`TotemOTP Example Server running on port ${PORT}`)
-      console.log(`Request OTP: POST http://localhost:${PORT}/otp/request`)
-      console.log(`Validate OTP: POST http://localhost:${PORT}/otp/validate`)
+      console.log('Available endpoints:')
+      console.log(`  Request OTP: POST http://localhost:${PORT}/otp/request`)
+      console.log(`  Validate OTP: POST http://localhost:${PORT}/otp/validate`)
+      console.log(`  Validate OTP with JWT Receipt: POST http://localhost:${PORT}/otp/validate-with-receipt`)
+      console.log(`  Validate JWT Receipt: POST http://localhost:${PORT}/receipt/validate`)
     })
 
     // Graceful shutdown

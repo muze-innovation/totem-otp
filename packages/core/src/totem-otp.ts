@@ -5,14 +5,18 @@ import type {
   IOTPTarget,
   IOTPValue,
   ITotemOTP,
-  ITotemOTPConfiguration
+  ITotemOTPConfiguration,
+  IValidationReceipt,
+  IValidationReceiptGenerator
 } from './interfaces'
 import {
   NoDeliveryAgentMatchedConfigError,
   NoSchemaMatchedTargetConfigError,
   OTPMismatchedError,
   OTPUsedError,
-  ResendBlockedError
+  ResendBlockedError,
+  UnmatchedValidationReceipt,
+  ValidationReceiptError
 } from './errors'
 import { generateOTPAndReference } from './utils/generator'
 
@@ -63,7 +67,13 @@ export class TotemOTP implements ITotemOTP {
     return otpVal
   }
 
-  public async validate(reference: string, otpValue: string): Promise<number> {
+  public async validate(reference: string, otpValue: string): Promise<number>
+  public async validate(reference: string, otpValue: string, purpose: string[]): Promise<string>
+  public async validate(
+    reference: string,
+    otpValue: string,
+    purpose?: string[]
+  ): Promise<number | string> {
     const otpFromDb = await this.storageImpl.fetchAndUsed(reference, otpValue)
     if (otpFromDb === null) {
       throw new OTPMismatchedError()
@@ -73,7 +83,41 @@ export class TotemOTP implements ITotemOTP {
     if (used > successValidateCount) {
       throw new OTPUsedError(used)
     }
+    if (Array.isArray(purpose)) {
+      const generator = this.getValidationReceiptGenerator()
+      return generator.createValidationReceipt(otpFromDb, purpose)
+    }
     return used
+  }
+
+  public async validateReceipt(
+    reference: string,
+    receipt: string,
+    purpose: string
+  ): Promise<IValidationReceipt> {
+    const generator = this.getValidationReceiptGenerator()
+    try {
+      const validationReceipt = await generator.validateReceipt(reference, receipt)
+
+      // Check if the receipt has expired
+      const nowEpoch = new Date().getTime()
+      if (validationReceipt.expiresAtMs <= nowEpoch) {
+        throw new ValidationReceiptError('Receipt has expired')
+      }
+
+      // Check if the purpose matches
+      if (!validationReceipt.purpose.includes(purpose)) {
+        throw new ValidationReceiptError(`Receipt does not include purpose: ${purpose}`)
+      }
+
+      return validationReceipt
+    } catch (error) {
+      if (error instanceof ValidationReceiptError) {
+        throw error
+      }
+      // If the generator throws any other error, wrap it in ValidationReceiptError
+      throw new ValidationReceiptError(error instanceof Error ? error.message : 'Invalid receipt')
+    }
   }
 
   // ---------------------------- PRIVATE METHODs ----------------------------- //
@@ -124,5 +168,13 @@ export class TotemOTP implements ITotemOTP {
       }
     }
     throw new NoDeliveryAgentMatchedConfigError()
+  }
+
+  private getValidationReceiptGenerator(): IValidationReceiptGenerator {
+    const config = this.configuration.validationReceipt
+    if (config) {
+      return config()
+    }
+    throw new UnmatchedValidationReceipt()
   }
 }

@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.esm.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "outDir": "./lib/cjs",
+    "baseUrl": ".",
+    "paths": {
+      "totem-otp": ["../core/src"]
+    }
+  },
+  "references": [
+    { "path": "../core" }
+  ]
+}

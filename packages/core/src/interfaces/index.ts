@@ -49,6 +49,26 @@ export interface IOTPValue {
 }
 
 /**
+ * Validation Receipt
+ */
+export interface IValidationReceipt {
+  /**
+   * This information has been validated.
+   */
+  target: IOTPTarget
+
+  /**
+   * The validation purpose
+   */
+  purpose: string[]
+
+  /**
+   * The receipt only valid until
+   */
+  expiresAtMs: number
+}
+
+/**
  * The message delivery service
  */
 export interface IDeliveryAgent {
@@ -58,6 +78,29 @@ export interface IDeliveryAgent {
    * @returns receipt_id of the delivery
    */
   sendMessageToAudience(otp: IOTPValue): Promise<string>
+}
+
+/**
+ * Validation Receipt Generator
+ */
+export interface IValidationReceiptGenerator {
+  /**
+   * Create a validation receipt string.
+   *
+   * @param otp the receipt would generated based on this IOTPValue. (IOTPValue.headers)
+   * @param purpose the purpose to be encoded into this token.
+   * @return string the receipt computed.
+   */
+  createValidationReceipt(otp: IOTPValue, purpose: string[]): Promise<string>
+
+  /**
+   * From given validation receipt string generate the receipt.
+   *
+   * @param reference the reference that used for creating this receipt. This parameter can be opt-in to use it to provide extra security.
+   * @param receipt the actual receipt itself.
+   * @return IValidationReceipt the receipt payload that this token represents.
+   */
+  validateReceipt(reference: string, receipt: string): Promise<IValidationReceipt>
 }
 
 /**
@@ -142,6 +185,33 @@ export interface ITotemOTP {
    * @throws OTPMismatchedError - the provided OTP mismatched with the given reference.
    */
   validate(reference: string, otpValue: string): Promise<number>
+
+  /**
+   * Use this method when application has otpValue to compare from frontend. And your wish to
+   * generate a `receipt` to represent the OTP validated states.
+   *
+   * @param reference the OTP reference sent from frontend.
+   * @param otpValue the actual OTP value from frontend.
+   * @param purpose the purpose for this receipt to represent. You can provide an array of it.
+   * @return string - the string that represent the receipt of this OTP.
+   * @throws UnknownReferenceError - no OTP belong to this reference.
+   * @throws OTPUsedError - the provided OTP has already been used. (Already correctly validated).
+   * @throws OTPMismatchedError - the provided OTP mismatched with the given reference.
+   * @throws UnmatchedValidationReceipt - no Validation Receipt Implementation available.
+   */
+  validate(reference: string, otpValue: string, purpose: string[]): Promise<string>
+
+  /**
+   * Use this method when application has the validation receipt from frontend.
+   * and wish to validate its purpose. This API can be called repeatedly without reducing the usages count.
+   *
+   * @param reference the OTP reference sent from frontend.
+   * @param receipt the Receipt string that is required.
+   * @param purpose the Purpose of this receipt. Extra layer of security.
+   * @throws ValidationReceiptError - the provided Receipt has been expired or invalid.
+   * @throws UnmatchedValidationReceipt - no Validation Receipt Implementation available.
+   */
+  validateReceipt(reference: string, receipt: string, purpose: string): Promise<IValidationReceipt>
 }
 
 export interface IMatchableConfigurationDeliveryAgent {
@@ -179,4 +249,9 @@ export interface ITotemOTPConfiguration {
    * Agents
    */
   deliveryAgents: IMatchableConfigurationDeliveryAgent[]
+
+  /**
+   * Validation Receipt Generator (optional)
+   */
+  validationReceipt?: () => IValidationReceiptGenerator
 }

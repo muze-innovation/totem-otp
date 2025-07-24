@@ -5,6 +5,7 @@
     "packages/core",
     "packages/storage-redis",
     "packages/delivery-webhook",
+    "packages/validation-receipt-jose",
     "examples/express"
   ],
   "homepage": "https://github.com/muze-innovation/totem-otp#readme",

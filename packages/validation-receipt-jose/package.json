@@ -1,7 +1,7 @@
 {
-  "name": "totem-otp",
-  "version": "0.0.5",
-  "description": "TotemOTP",
+  "name": "totem-otp-validation-receipt-jose",
+  "version": "0.0.4",
+  "description": "Validation Receipt implementation for TotemOTP using Jose",
   "main": "lib/cjs/src/index.js",
   "typings": "lib/cjs/src/index.d.ts",
   "scripts": {
@@ -12,7 +12,9 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "roots": ["<rootDir>/src"],
+    "roots": [
+      "<rootDir>/src"
+    ],
     "testMatch": [
       "**/__tests__/**/*.test.ts",
       "**/?(*.)+(spec|test).ts"
@@ -31,7 +33,10 @@
     "url": "git+https://github.com/muze-innovation/totem-otp.git"
   },
   "keywords": [
-    "otp"
+    "otp",
+    "jwt",
+    "jose",
+    "validation-receipt"
   ],
   "author": "Muze Innovation",
   "license": "ISC",
@@ -39,7 +44,16 @@
     "url": "https://github.com/muze-innovation/totem-otp/issues"
   },
   "homepage": "https://github.com/muze-innovation/totem-otp#readme",
+  "peerDependencies": {
+    "totem-otp": "~0.0.5"
+  },
+  "dependencies": {
+    "jose": "^5.9.6"
+  },
   "devDependencies": {
-    "@types/jest": "^29.5.0"
+    "@types/jest": "^29.5.0",
+    "jest": "^30.0.4",
+    "ts-jest": "^29.4.0",
+    "typescript": "^5.8.3"
   }
 }

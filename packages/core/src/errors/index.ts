@@ -5,3 +5,5 @@ export { NoSchemaMatchedTargetConfigError } from './NoSchemaMatchedTargetConfigE
 export { NoDeliveryAgentMatchedConfigError } from './NoDeliveryAgentMatchedConfigError'
 export { OTPUsedError } from './OTPUsedError'
 export { OTPMismatchedError } from './OTPMismatchedError'
+export { ValidationReceiptError } from './ValidationReceiptError'
+export { UnmatchedValidationReceipt } from './UnmatchedValidationReceipt'
