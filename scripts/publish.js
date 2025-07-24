@@ -13,7 +13,8 @@ const path = require('path');
 const PUBLISH_ORDER = [
   'packages/core',
   'packages/storage-redis', 
-  'packages/delivery-webhook'
+  'packages/delivery-webhook',
+  'packages/validation-receipt-jose'
 ];
 
 const REGISTRY_URL = process.env.NPM_REGISTRY || 'https://registry.npmjs.org/';
