@@ -19,6 +19,7 @@ import {
   ValidationReceiptError
 } from './errors'
 import { generateOTPAndReference } from './utils/generator'
+import { OTPExpiredError } from './errors/OTPExpiredError'
 
 export class TotemOTP implements ITotemOTP {
   public constructor(public readonly configuration: ITotemOTPConfiguration) {}
@@ -77,6 +78,10 @@ export class TotemOTP implements ITotemOTP {
     const otpFromDb = await this.storageImpl.fetchAndUsed(reference, otpValue)
     if (otpFromDb === null) {
       throw new OTPMismatchedError()
+    }
+    const nowEpoch = new Date().getTime()
+    if (otpFromDb.expiresAtMs < nowEpoch) {
+      throw new OTPExpiredError()
     }
     const successValidateCount = this.matchSchema(otpFromDb.target).aging.successValidateCount
     const used = otpFromDb.used
